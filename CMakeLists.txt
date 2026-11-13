@@ -29,3 +29,8 @@ set(APP_HEADERS
 
 add_executable(LiniennetzplanEditor ${APP_SOURCES} ${APP_HEADERS})
 target_link_libraries(LiniennetzplanEditor PRIVATE Qt6::Widgets Qt6::Svg)
+
+# Windows: Kein Konsolenfenster anzeigen (GUI-Anwendung)
+if(WIN32 AND MINGW)
+    set_target_properties(LiniennetzplanEditor PROPERTIES LINK_FLAGS "-mwindows")
+endif()

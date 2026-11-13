@@ -620,15 +620,23 @@ QWidget* MainWindow::buildNodesTab()
             QMessageBox::information(this, L("act.makenode"), L("msg.pickstops"));
             return;
         }
-        bool ok = false;
-        const QString name = QInputDialog::getText(this, L("act.makenode"), L("label.name"),
-                                                   QLineEdit::Normal,
-                                                   QStringLiteral("Knoten %1").arg(prj_.nodes.size() + 1),
-                                                   &ok);
-        if (!ok)
-            return;
+        
+        QString name;
+        if (ids.size() == 1) {
+            // Bei einer Haltestelle: Name der Haltestelle uebernehmen
+            name = prj_.stops[ids.first()].name;
+        } else {
+            // Bei mehreren Haltestellen: Frei waehlbaren Namen abfragen
+            bool ok = false;
+            name = QInputDialog::getText(this, L("act.makenode"), L("label.name"),
+                                               QLineEdit::Normal,
+                                               QStringLiteral("Knoten %1").arg(prj_.nodes.size() + 1),
+                                               &ok);
+            if (!ok)
+                return;
+        }
         pushUndo();
-        prj_.addNode(name.isEmpty() ? QStringLiteral("K%1").arg(prj_.nextId) : name, ids);
+        prj_.addNode(name, ids);
         rebuildNodes();
         rebuildNodeCandidates();
         onLayoutChanged();

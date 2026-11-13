@@ -153,8 +153,6 @@ bool NetworkView::hitNode(const QPointF& m, Id* nodeId) const
 {
     const double thr = 10.0 / scale_;
     for (const Id nid : prj_->nodeOrder) {
-        if (prj_->nodes[nid].stopIds.size() < 2)
-            continue;
         if (QLineF(m, nodePos(prj_->nodes[nid])).length() <= thr) {
             *nodeId = nid;
             return true;

@@ -714,6 +714,56 @@ Layout computeLayout(const Project& prj)
 
     placeLabels(prj, lay);
     lay.bbox = computeBbox(lay);
+    
+    // Normalisiere das Koordinatensystem: erste Haltestelle bei (0,0)
+    // Nur wenn es Haltestellen gibt
+    if (!lay.stopPos.isEmpty()) {
+        const QPointF firstStopPos = lay.stopPos.begin().value();
+        const QPointF offset = -firstStopPos;
+        
+        // Verschiebe alle Positionen
+        for (SectionLay& sl : lay.sections) {
+            for (QPointF& pt : sl.axis.pts)
+                pt += offset;
+            for (PlacedElem& pe : sl.elems)
+                pe.pos += offset;
+            // arc bleibt gleich (relative Bogenlänge)
+        }
+        
+        // Verschiebe alle Knotenpositionen
+        for (Id nid : prj.nodeOrder) {
+            const NodeGroup& n = prj.nodes[nid];
+            // Knotenpositionen werden im Projekt gespeichert, nicht im Layout
+            // Aber wir können die stopPos im Layout verschieben
+        }
+        
+        // Verschiebe alle Stop-Positionen im Layout
+        QHash<Id, QPointF> newStopPos;
+        for (auto it = lay.stopPos.constBegin(); it != lay.stopPos.constEnd(); ++it)
+            newStopPos.insert(it.key(), it.value() + offset);
+        lay.stopPos = newStopPos;
+        
+        // Verschiebe alle Line-Lay-Positionen
+        for (LineLay& ll : lay.lines) {
+            ll.startPos += offset;
+            ll.endPos += offset;
+            for (PieceLay& pc : ll.pieces)
+                for (QPointF& pt : pc.path.pts)
+                    pt += offset;
+            for (auto& cn : ll.connectors) {
+                cn.first += offset;
+                cn.second += offset;
+            }
+        }
+        
+        // Verschiebe alle Label-Positionen
+        for (StopLabelLay& lbl : lay.labels)
+            lbl.pos += offset;
+        
+        // Bbox anpassen
+        lay.bbox.translate(offset);
+    }
+    
     collectWarnings(prj, lay);
     return lay;
 }
