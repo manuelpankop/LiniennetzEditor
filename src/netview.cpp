@@ -434,7 +434,7 @@ void NetworkView::mouseDoubleClickEvent(QMouseEvent* ev)
 
 void NetworkView::contextMenuEvent(QContextMenuEvent* ev)
 {
-    const QPointF m = toModel(ev->position());
+    const QPointF m = toModel(ev->pos());
 
     // 1) Via-Punkt
     Id secId = -1;

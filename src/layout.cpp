@@ -233,10 +233,10 @@ bool placeSection(const Project& prj, const Section& sec, SectionLay& sl, Layout
     }
     Poly shapePoly;
     shapePoly.pts = shape;
-    const double polyLength = shapePoly.length();
+    const double shapeLength = shapePoly.length();
 
     const double needed = hops * G;
-    if (polyLength < needed - 1e-6)
+    if (shapeLength < needed - 1e-6)
         lay.warnings.push_back(l10n::L("warn.sectionshort").arg(sec.name));
 
     // Positionen der Elemente in Laufreihenfolge.
@@ -244,7 +244,7 @@ bool placeSection(const Project& prj, const Section& sec, SectionLay& sl, Layout
     pos[0] = A;
     pos[W.size() - 1] = B;
     for (int k = 1; k <= m; ++k) {
-        const double s = (L >= needed) ? k * G : k * L / hops;
+        const double s = (shapeLength >= needed) ? k * G : k * shapeLength / hops;
         pos[k] = shapePoly.pointAt(s);
     }
 
