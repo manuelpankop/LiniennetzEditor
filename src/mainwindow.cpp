@@ -324,6 +324,7 @@ QWidget* MainWindow::buildStopsTab()
         pushUndo();
         prj_.addStop(name.isEmpty() ? QStringLiteral("H%1").arg(prj_.nextId) : name);
         rebuildStops();
+        rebuildNodeCandidates();
         onLayoutChanged();
     });
     QPushButton* ren = new QPushButton(w);
@@ -341,6 +342,7 @@ QWidget* MainWindow::buildStopsTab()
         pushUndo();
         prj_.stops[id].name = name;
         rebuildStops();
+        rebuildNodeCandidates();
         onLayoutChanged();
     });
     QPushButton* del = new QPushButton(w);
@@ -1006,6 +1008,7 @@ void MainWindow::rebuildNodeCandidates()
     for (const Id id : prj_.stopOrder) {
         QListWidgetItem* it = new QListWidgetItem(prj_.stops[id].name);
         it->setData(Qt::UserRole, id);
+        it->setFlags(it->flags() | Qt::ItemIsSelectable | Qt::ItemIsEnabled);
         nodeStopList_->addItem(it);
     }
     updating_ = false;
