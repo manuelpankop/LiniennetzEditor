@@ -15,6 +15,31 @@ namespace {
 
 using l10n::L;
 
+// Hilfsfunktion: Position eines Elements (Haltestelle oder Grenzpunkt) bestimmen
+QPointF elemPos(const Project& prj, const Elem& e, const Layout& lay)
+{
+    if (e.kind == ElemKind::Boundary) {
+        return prj.boundaries[e.id].pos;
+    } else {
+        // Haltestelle
+        const Id nid = prj.nodeOfStop(e.id);
+        if (nid >= 0 && prj.nodes.contains(nid)) {
+            const NodeGroup& n = prj.nodes[nid];
+            // Wenn der Knoten verschoben wurde, verwende seine Position
+            if (n.moveStamp > 0.0)
+                return n.pos;
+            // Andernfalls: Schwerpunkt der platzierten Haltestellen
+            if (lay.stopPos.contains(e.id))
+                return lay.stopPos[e.id];
+        }
+        // Falls die Haltestelle bereits im Layout platziert wurde
+        if (lay.stopPos.contains(e.id))
+            return lay.stopPos[e.id];
+        // Fallback: Ursprung
+        return QPointF(0, 0);
+    }
+}
+
 // ---------- Hop-Routen ----------
 
 // Beste oktilineare Route fuer einen einzelnen Abschnitt (Hop) zwischen zwei
@@ -145,63 +170,46 @@ bool placeSection(const Project& prj, const Section& sec, SectionLay& sl, Layout
     sl.section = sec.id;
     const QVector<Elem>& elems = sec.elems;
     if (elems.size() < 2) {
-        lay.warnings.push_back(L("warn.sectionunanchored").arg(sec.name));
+        lay.warnings.push_back(L("warn.toofewpoints").arg(sec.name));
         return false;
-    }
-
-    int ai = -1, aj = -1;
-    for (int i = 0; i < elems.size(); ++i) {
-        if (elems[i].kind == ElemKind::Boundary) {
-            if (ai < 0)
-                ai = i;
-            aj = i;
-        }
     }
 
     const double G = prj.settings.stopSpacing;
 
-    if (ai < 0 || aj <= ai) {
-        // Weniger als zwei verankerte Grenzpunkte: Fallback mit gerader
-        // Verlaengerung nach Osten ab dem einzigen Anker.
-        lay.warnings.push_back(L("warn.sectionunanchored").arg(sec.name));
-        if (ai < 0)
-            return false;
-        const QPointF A = prj.boundaries[elems[ai].id].pos;
-        const QPointF dir(1, 0);
-        QVector<QPointF> axis;
-        QVector<PlacedElem> placed;
-        double arc = 0.0;
-        for (int k = 0; k < elems.size(); ++k) {
-            const QPointF pos = A + dir * ((ai - k) * G);
-            PlacedElem pe;
-            pe.e = elems[k];
-            pe.pos = pos;
-            pe.index = k;
-            pe.arc = arc;
-            placed.push_back(pe);
-            arc += G;
-            if (axis.isEmpty() || pos != axis.last())
-                axis.push_back(pos);
-        }
-        sl.axis.pts = axis;
-        sl.elems = placed;
-        return true;
+    // Verwende das erste und letzte Element (Haltestelle ODER Grenzpunkt)
+    const Elem& firstElem = elems.first();
+    const Elem& lastElem = elems.last();
+    
+    const QPointF A = elemPos(prj, firstElem, lay);
+    const QPointF B = elemPos(prj, lastElem, lay);
+
+    // Referenzende ist der aeltere Anker (kleinerer Zeitstempel)
+    // Für Grenzpunkte: verwende moveStamp der BoundaryPoint
+    // Für Haltestellen: verwende moveStamp des zugehörigen Knotens
+    double stampA = 0.0, stampB = 0.0;
+    if (firstElem.kind == ElemKind::Boundary) {
+        stampA = prj.boundaries[firstElem.id].moveStamp;
+    } else {
+        const Id nid = prj.nodeOfStop(firstElem.id);
+        if (nid >= 0 && prj.nodes.contains(nid))
+            stampA = prj.nodes[nid].moveStamp;
     }
-
-    const BoundaryPoint& bA = prj.boundaries[elems[ai].id];
-    const BoundaryPoint& bB = prj.boundaries[elems[aj].id];
-    const QPointF A = bA.pos;
-    const QPointF B = bB.pos;
-
-    // Referenzende ist der aeltere Anker (kleinerer Zeitstempel); der
-    // juenger bewegte Anker staucht nur das letzte Intervall.
-    const bool reversed = bB.moveStamp < bA.moveStamp;
+    if (lastElem.kind == ElemKind::Boundary) {
+        stampB = prj.boundaries[lastElem.id].moveStamp;
+    } else {
+        const Id nid = prj.nodeOfStop(lastElem.id);
+        if (nid >= 0 && prj.nodes.contains(nid))
+            stampB = prj.nodes[nid].moveStamp;
+    }
+    
+    const bool reversed = stampB < stampA;
+    // Verwende alle Elemente in der richtigen Reihenfolge
     QVector<int> W;
     if (!reversed) {
-        for (int i = ai; i <= aj; ++i)
+        for (int i = 0; i < elems.size(); ++i)
             W.push_back(i);
     } else {
-        for (int i = aj; i >= ai; --i)
+        for (int i = elems.size() - 1; i >= 0; --i)
             W.push_back(i);
     }
     const int m = int(W.size()) - 2; // innere Elemente
@@ -282,39 +290,18 @@ bool placeSection(const Project& prj, const Section& sec, SectionLay& sl, Layout
 
     // Kopf-/Schwanzverlaengerung: gerade Verlaengerung entlang der ersten bzw.
     // letzten Achsenrichtung, Elemente im Abstand G vom Anker.
+    // Da wir jetzt alle Elemente verwenden (0 bis elems.size()-1), gibt es keine
+    // Elemente vor dem ersten oder nach dem letzten - also keine Kopf-/Schwanzverlaengerung
     QVector<QPointF> head;
-    if (ai > 0 && axis.size() >= 2) {
-        const QPointF d0 = axis[1] - axis[0];
-        const double len = std::hypot(d0.x(), d0.y());
-        const QPointF dir = len > 1e-9 ? QPointF(d0.x() / len, d0.y() / len) : QPointF(1, 0);
-        for (int k = ai - 1; k >= 0; --k)
-            head.push_back(A - dir * ((ai - k) * G));
-    }
     QVector<QPointF> tail;
-    if (aj < elems.size() - 1 && axis.size() >= 2) {
-        const QPointF dN = axis.last() - axis[axis.size() - 2];
-        const double len = std::hypot(dN.x(), dN.y());
-        const QPointF dir = len > 1e-9 ? QPointF(dN.x() / len, dN.y() / len) : QPointF(1, 0);
-        for (int k = aj + 1; k < elems.size(); ++k)
-            tail.push_back(B + dir * ((k - aj) * G));
-    }
 
     // Achse zusammensetzen und Elemente mit Bogenlaengen eintragen.
     Poly axisPoly;
-    axisPoly.pts = head + axis + tail;
+    axisPoly.pts = axis;  // head und tail sind leer, da wir alle Elemente verwenden
 
     QHash<int, QPointF> posOfIndex;
     QHash<int, double> arcOfIndex;
-    // Kopf-Elemente: Bogenlaengen vor dem Anker (negativ).
-    double headLen = 0.0;
-    for (int k = ai - 1; k >= 0; --k) {
-        headLen -= G;
-        const QPointF dirv = (axis.size() >= 2)
-            ? (axis[1] - axis[0]) / std::max(1e-9, std::hypot((axis[1] - axis[0]).x(), (axis[1] - axis[0]).y()))
-            : QPointF(1, 0);
-        posOfIndex.insert(k, A + dirv * headLen);
-        arcOfIndex.insert(k, headLen);
-    }
+    // Position und Bogenlaenge für alle Elemente
     {
         double arc = 0.0;
         for (int k = 0; k < int(W.size()); ++k) {
@@ -322,19 +309,6 @@ bool placeSection(const Project& prj, const Section& sec, SectionLay& sl, Layout
             arcOfIndex.insert(W[k], arc);
             if (k < hops)
                 arc += hopLen[k];
-        }
-        if (axis.size() >= 2) {
-            const QPointF dirv = (axis.last() - axis[axis.size() - 2])
-                / std::max(1e-9, std::hypot((axis.last() - axis[axis.size() - 2]).x(),
-                                            (axis.last() - axis[axis.size() - 2]).y()));
-            double tailArc = arc;
-            double tailLen = 0.0;
-            for (int k = aj + 1; k < elems.size(); ++k) {
-                tailLen += G;
-                posOfIndex.insert(k, B + dirv * tailLen);
-                arcOfIndex.insert(k, tailArc);
-                tailArc += G;
-            }
         }
     }
 
