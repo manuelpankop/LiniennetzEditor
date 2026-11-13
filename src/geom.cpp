@@ -316,7 +316,8 @@ QVector<QVector<QPointF>> routeCandidates(const QPointF& a, const QPointF& b)
 
 int countBends(const QVector<QPointF>& pts)
 {
-    return std::max(0, tidy(pts).size() - 2);
+    const qsizetype n = tidy(pts).size();
+    return std::max(qsizetype(0), n - 2);
 }
 
 bool has90Bend(const QVector<QPointF>& pts)
@@ -341,7 +342,7 @@ QVector<QPointF> bestRoute(const QPointF& a, const QPointF& b)
     const auto cands = routeCandidates(a, b);
     for (const auto& raw : cands) {
         const QVector<QPointF> c = tidy(raw);
-        const int bends = std::max(0, c.size() - 2);
+        const int bends = std::max(qsizetype(0), c.size() - 2);
         const double len = polyLength(c);
         if (bends < bestBends || (bends == bestBends && len < bestLen - 1e-9)) {
             best = c;

@@ -233,11 +233,11 @@ bool placeSection(const Project& prj, const Section& sec, SectionLay& sl, Layout
     }
     Poly shapePoly;
     shapePoly.pts = shape;
-    const double L = shapePoly.length();
+    const double polyLength = shapePoly.length();
 
     const double needed = hops * G;
-    if (L < needed - 1e-6)
-        lay.warnings.push_back(L("warn.sectionshort").arg(sec.name));
+    if (polyLength < needed - 1e-6)
+        lay.warnings.push_back(l10n::L("warn.sectionshort").arg(sec.name));
 
     // Positionen der Elemente in Laufreihenfolge.
     QVector<QPointF> pos(W.size());
