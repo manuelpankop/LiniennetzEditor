@@ -15,27 +15,30 @@ namespace {
 
 using l10n::L;
 
-// Hilfsfunktion: Position eines Elements (Haltestelle oder Grenzpunkt) bestimmen
-QPointF elemPos(const Project& prj, const Elem& e, const Layout& lay)
+// Hilfsfunktion: Prueft, ob ein Element eine feste Position hat
+bool elemHasFixedPos(const Project& prj, const Elem& e)
+{
+    if (e.kind == ElemKind::Boundary) {
+        return prj.boundaries.contains(e.id);
+    } else {
+        // Haltestelle: hat feste Position, wenn sie zu einem Knoten gehoert
+        const Id nid = prj.nodeOfStop(e.id);
+        return nid >= 0 && prj.nodes.contains(nid);
+    }
+}
+
+// Hilfsfunktion: Position eines Elements mit fester Position zurueckgeben
+QPointF elemFixedPos(const Project& prj, const Elem& e)
 {
     if (e.kind == ElemKind::Boundary) {
         return prj.boundaries[e.id].pos;
     } else {
-        // Haltestelle
+        // Haltestelle: Position des Knotens
         const Id nid = prj.nodeOfStop(e.id);
         if (nid >= 0 && prj.nodes.contains(nid)) {
-            const NodeGroup& n = prj.nodes[nid];
-            // Wenn der Knoten verschoben wurde, verwende seine Position
-            if (n.moveStamp > 0.0)
-                return n.pos;
-            // Andernfalls: Schwerpunkt der platzierten Haltestellen
-            if (lay.stopPos.contains(e.id))
-                return lay.stopPos[e.id];
+            return prj.nodes[nid].pos;
         }
-        // Falls die Haltestelle bereits im Layout platziert wurde
-        if (lay.stopPos.contains(e.id))
-            return lay.stopPos[e.id];
-        // Fallback: Ursprung
+        // Fallback: Ursprung (sollte nicht passieren, wenn elemHasFixedPos true ist)
         return QPointF(0, 0);
     }
 }
@@ -176,28 +179,41 @@ bool placeSection(const Project& prj, const Section& sec, SectionLay& sl, Layout
 
     const double G = prj.settings.stopSpacing;
 
-    // Verwende das erste und letzte Element (Haltestelle ODER Grenzpunkt)
-    const Elem& firstElem = elems.first();
-    const Elem& lastElem = elems.last();
-    
-    const QPointF A = elemPos(prj, firstElem, lay);
-    const QPointF B = elemPos(prj, lastElem, lay);
+    // Finde das erste und letzte Element MIT fester Position
+    // (Grenzpunkt oder Haltestelle in einem Knoten)
+    int ai = -1, aj = -1;
+    for (int i = 0; i < elems.size(); ++i) {
+        if (elemHasFixedPos(prj, elems[i])) {
+            if (ai < 0)
+                ai = i;
+            aj = i;
+        }
+    }
+
+    if (ai < 0 || aj <= ai) {
+        // Keine oder nur eine feste Position: Fallback
+        lay.warnings.push_back(L("warn.noanchors").arg(sec.name));
+        // Versuche mit dem ersten und letzten Element
+        ai = 0;
+        aj = elems.size() - 1;
+    }
+
+    const QPointF A = elemFixedPos(prj, elems[ai]);
+    const QPointF B = elemFixedPos(prj, elems[aj]);
 
     // Referenzende ist der aeltere Anker (kleinerer Zeitstempel)
-    // Für Grenzpunkte: verwende moveStamp der BoundaryPoint
-    // Für Haltestellen: verwende moveStamp des zugehörigen Knotens
     double stampA = 0.0, stampB = 0.0;
-    if (firstElem.kind == ElemKind::Boundary) {
-        stampA = prj.boundaries[firstElem.id].moveStamp;
+    if (elems[ai].kind == ElemKind::Boundary) {
+        stampA = prj.boundaries[elems[ai].id].moveStamp;
     } else {
-        const Id nid = prj.nodeOfStop(firstElem.id);
+        const Id nid = prj.nodeOfStop(elems[ai].id);
         if (nid >= 0 && prj.nodes.contains(nid))
             stampA = prj.nodes[nid].moveStamp;
     }
-    if (lastElem.kind == ElemKind::Boundary) {
-        stampB = prj.boundaries[lastElem.id].moveStamp;
+    if (elems[aj].kind == ElemKind::Boundary) {
+        stampB = prj.boundaries[elems[aj].id].moveStamp;
     } else {
-        const Id nid = prj.nodeOfStop(lastElem.id);
+        const Id nid = prj.nodeOfStop(elems[aj].id);
         if (nid >= 0 && prj.nodes.contains(nid))
             stampB = prj.nodes[nid].moveStamp;
     }

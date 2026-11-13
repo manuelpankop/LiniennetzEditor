@@ -966,8 +966,8 @@ void MainWindow::rebuildSectionElems()
         const Section& sec = prj_.sections[curSection_];
         for (const Elem& e : sec.elems) {
             const QString marker = e.kind == ElemKind::Stop
-                ? QStringLiteral("\342\226\240 ") // kleiner Block: Haltestelle
-                : QStringLiteral("\342\206\222 "); // Pfeil: Grenzpunkt
+                ? QStringLiteral("\u25A0 ") // kleiner Block: Haltestelle
+                : QStringLiteral("\u2192 "); // Pfeil: Grenzpunkt
             elemList_->addItem(marker + prj_.elemName(e));
         }
     }
