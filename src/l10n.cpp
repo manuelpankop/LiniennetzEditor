@@ -143,6 +143,8 @@ const Entry kTable[] = {
      "\342\200\2362: Boundary Points\342\200\234 tab first."},
     {"msg.pick2", "Bitte mindestens zwei Haltestellen ausw\303\244hlen.",
      "Please select at least two stops."},
+    {"msg.pickstops", "Bitte mindestens eine Haltestelle ausw\303\244hlen.",
+     "Please select at least one stop."},
     {"msg.demo", "Beispielnetz geladen.", "Example network loaded."},
     {"err.open", "Die Datei konnte nicht ge\303\266ffnet werden.",
      "The file could not be opened."},

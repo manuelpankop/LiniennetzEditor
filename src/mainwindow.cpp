@@ -616,8 +616,8 @@ QWidget* MainWindow::buildNodesTab()
         QVector<Id> ids;
         for (QListWidgetItem* it : nodeStopList_->selectedItems())
             ids.push_back(it->data(Qt::UserRole).toInt());
-        if (ids.size() < 2) {
-            QMessageBox::information(this, L("act.makenode"), L("msg.pick2"));
+        if (ids.isEmpty()) {
+            QMessageBox::information(this, L("act.makenode"), L("msg.pickstops"));
             return;
         }
         bool ok = false;
