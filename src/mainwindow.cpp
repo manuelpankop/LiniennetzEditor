@@ -677,6 +677,9 @@ QWidget* MainWindow::buildNodesTab()
 
     nodeList_ = new QListWidget(w);
     lay->addWidget(nodeList_, 1);
+    
+    // Initial die Haltestellen-Liste füllen
+    rebuildNodeCandidates();
     return w;
 }
 
